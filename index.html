@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画像一括形式変換メーカー</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --soft: #f0f9ff;
+    --panel: #ffffff;
+    --text: #1f2937;
+    --muted: #64748b;
+    --line: #dbe7f0;
+    --accent: #0284c7;       /* ボタンなど白文字をのせる水色（読みやすさ優先の濃いめ） */
+    --accent-light: #38bdf8; /* 枠線・強調用の水色 */
+    --accent-weak: #e0f2fe;
+    --danger: #dc2626;
+    --warn: #92400e;
+    --warn-bg: #fef3c7;
+    --good: #047857;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 16px 48px; }
+  header { text-align: center; margin-bottom: 20px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0; font-size: .95rem; }
+
+  .howto {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; list-style: none;
+    margin: 0 0 20px; padding: 0; counter-reset: step;
+  }
+  @media (max-width: 600px) { .howto { grid-template-columns: repeat(2, 1fr); } }
+  .howto li {
+    background: var(--soft); border: 1px solid var(--accent-weak); border-radius: 10px;
+    padding: 8px 10px; font-size: .85rem; text-align: center;
+  }
+  .howto b { display: block; color: var(--accent); font-size: .75rem; letter-spacing: .05em; }
+
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .step-title { font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    background: var(--accent); color: #fff; border-radius: 999px; font-size: .72rem; font-weight: 700;
+    padding: 2px 10px; letter-spacing: .05em; flex-shrink: 0;
+  }
+
+  .drop {
+    border: 2px dashed var(--accent-light); border-radius: 12px; background: var(--soft);
+    padding: 30px 16px; text-align: center; cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  .drop:hover, .drop:focus-visible { background: var(--accent-weak); outline: none; }
+  .drop.over { background: var(--accent-weak); border-color: var(--accent); }
+  .drop .big { font-size: 1.1rem; font-weight: 700; margin: 6px 0 2px; }
+  .drop .small { color: var(--muted); font-size: .88rem; }
+  .drop svg { color: var(--accent); }
+  .drop.compact { padding: 14px; }
+  .drop.compact svg, .drop.compact .small { display: none; }
+  .drop.compact .big { font-size: 1rem; margin: 0; }
+
+  .notice { margin-top: 12px; border: 1px solid var(--danger); border-radius: 10px; padding: 10px 14px; font-size: .88rem; }
+  .notice-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--danger); }
+  .notice ul { margin: 8px 0 0; padding-left: 1.2em; max-height: 160px; overflow-y: auto; word-break: break-all; }
+
+  .listhead { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; }
+  .listhead .count { font-weight: 700; }
+  .btn-sub {
+    border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 8px;
+    padding: 6px 12px; font: inherit; font-size: .85rem; cursor: pointer;
+  }
+  .btn-sub:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+  .btn-sub:disabled { opacity: .4; cursor: not-allowed; }
+
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .item {
+    display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center;
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  }
+  .item canvas { width: 56px; height: 56px; object-fit: contain; border-radius: 6px; background: var(--soft); display: block; }
+  .item .name { font-size: .88rem; font-weight: 700; word-break: break-all; }
+  .item .meta { font-size: .8rem; color: var(--muted); }
+  .item .meta .to { color: var(--accent); font-weight: 700; }
+  .item .meta .ok { color: var(--good); font-weight: 700; }
+  .item .meta .ng { color: var(--danger); font-weight: 700; }
+  .item .warn { font-size: .75rem; color: var(--warn); background: var(--warn-bg); border-radius: 6px; padding: 2px 6px; margin-top: 3px; display: inline-block; }
+  .item .warn[hidden] { display: none; }
+  .del {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: #fff;
+    color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer;
+  }
+  .del:hover { border-color: var(--danger); color: var(--danger); }
+  .del:disabled { opacity: .4; cursor: not-allowed; }
+
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .seg button {
+    padding: 12px 4px; border: 2px solid var(--line); background: #fff; color: var(--text);
+    border-radius: 10px; font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer; line-height: 1.3;
+  }
+  .seg button small { display: block; font-size: .72rem; font-weight: 400; color: var(--muted); margin-top: 2px; }
+  .seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+  .seg button[aria-pressed="true"] small { color: var(--accent); }
+  .seg button:disabled { opacity: .4; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: 8px; }
+
+  .btn-main {
+    width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #fff;
+    font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
+  }
+  .btn-main:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-main:disabled { opacity: .4; cursor: not-allowed; }
+  .progress { height: 10px; border-radius: 5px; background: var(--accent-weak); overflow: hidden; margin-top: 12px; display: none; }
+  .progress.on { display: block; }
+  .progress > div { height: 100%; width: 0; background: var(--accent-light); transition: width .15s; }
+  .status { font-size: .88rem; color: var(--muted); margin-top: 8px; text-align: center; min-height: 1.4em; }
+
+  .note { margin-top: 20px; font-size: .8rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>画像一括形式変換メーカー</h1>
+    <p class="lead">複数画像をまとめてJPG・PNG・WebPへ変換</p>
+  </header>
+
+  <ol class="howto" aria-label="使い方">
+    <li><b>STEP1</b>画像を選択</li>
+    <li><b>STEP2</b>変換形式を選択</li>
+    <li><b>STEP3</b>一括変換</li>
+    <li><b>STEP4</b>ZIPで保存</li>
+  </ol>
+
+  <!-- STEP1 -->
+  <section class="step">
+    <h2 class="step-title"><span class="badge">STEP1</span>画像を選択</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="画像を選択">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+      </svg>
+      <div class="big" id="dropBig">ここに画像をドラッグ＆ドロップ</div>
+      <div class="small">またはタップ・クリックして選ぶ（JPG・PNG・WebP／複数OK）</div>
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple hidden>
+    </div>
+
+    <div class="notice" id="notice" hidden role="alert">
+      <div class="notice-head">
+        <strong>追加・変換できなかった画像があります</strong>
+        <button type="button" class="btn-sub" id="noticeClose">閉じる</button>
+      </div>
+      <ul id="noticeList"></ul>
+    </div>
+
+    <div class="listhead" id="listhead" hidden>
+      <span class="count" id="count"></span>
+      <button type="button" class="btn-sub" id="clearBtn">すべて削除</button>
+    </div>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <!-- STEP2 -->
+  <section class="step">
+    <h2 class="step-title"><span class="badge">STEP2</span>変換形式を選択</h2>
+    <div class="seg" id="fmtSeg">
+      <button type="button" data-v="jpeg" aria-pressed="true">JPG<small>写真向け・軽い</small></button>
+      <button type="button" data-v="png">PNG<small>透明OK・高画質</small></button>
+      <button type="button" data-v="webp">WebP<small>軽い・透明OK</small></button>
+    </div>
+    <div class="hint" id="fmtHint">JPGは透明な部分を残せないため、白になります。</div>
+  </section>
+
+  <!-- STEP3・4 -->
+  <section class="step">
+    <h2 class="step-title"><span class="badge">STEP3</span>一括変換</h2>
+    <button type="button" class="btn-main" id="convertBtn" disabled>一括変換する</button>
+    <div class="progress" id="progress"><div></div></div>
+    <div class="status" id="status">まず画像を選択してください</div>
+
+    <h2 class="step-title" style="margin-top:18px"><span class="badge">STEP4</span>ZIPで保存</h2>
+    <button type="button" class="btn-main" id="zipBtn" disabled>ZIPで保存する</button>
+  </section>
+
+  <p class="note">
+    画像はお使いの端末のブラウザ内だけで処理され、外部のサーバーには送信されません。<br>
+    変換後の画像には、撮影日時や位置情報などの画像情報（Exif）は残りません。
+  </p>
+</div>
+
+<script>
+(() => {
+  const PREVIEW = 112;
+  const QUALITY = 0.92;
+  const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const EXT = { jpeg: 'jpg', png: 'png', webp: 'webp' };
+  const LABEL = { 'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WebP', jpeg: 'JPG', png: 'PNG', webp: 'WebP' };
+
+  const state = { fmt: 'jpeg', items: [], busy: false, pending: 0, loaded: 0 };
+  let nextId = 1;
+  let converted = null; // 変換済みの結果（一覧や形式を変えたら作り直し）
+
+  const $ = id => document.getElementById(id);
+  const list = $('list'), drop = $('drop'), fileInput = $('fileInput');
+  const convertBtn = $('convertBtn'), zipBtn = $('zipBtn'), statusEl = $('status'), progress = $('progress');
+
+  // ---------- WebP書き出し対応チェック ----------
+  const webpOK = (() => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 1;
+      return c.toDataURL('image/webp').startsWith('data:image/webp');
+    } catch { return false; }
+  })();
+  if (!webpOK) {
+    const b = $('fmtSeg').querySelector('[data-v="webp"]');
+    b.disabled = true;
+    b.querySelector('small').textContent = 'この端末では不可';
+  }
+
+  // ---------- 共通 ----------
+  function fmtSize(b) {
+    if (b >= 1024 * 1024) return (b / 1024 / 1024).toFixed(1) + 'MB';
+    if (b >= 1024) return Math.round(b / 1024) + 'KB';
+    return b + 'B';
+  }
+  const typeOf = file => OK_TYPES.includes(file.type) ? file.type
+    : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : '';
+
+  function detectAlpha(img) {
+    const s = Math.min(512 / img.naturalWidth, 512 / img.naturalHeight, 1);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * s));
+    c.height = Math.max(1, Math.round(img.naturalHeight * s));
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let found = false;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 255) { found = true; break; }
+    c.width = c.height = 0;
+    return found;
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          // onloadだけでは壊れた画像を見逃すことがあるため、デコードまで確認する
+          if (img.decode) await img.decode();
+          if (!img.naturalWidth || !img.naturalHeight) throw new Error('size');
+          resolve({ img, url });
+        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('load')); };
+      img.src = url;
+    });
+  }
+
+  // ---------- エラー表示（設定変更などで消えない） ----------
+  function addNotice(msg) {
+    const li = document.createElement('li');
+    li.textContent = msg;
+    $('noticeList').appendChild(li);
+    $('notice').hidden = false;
+  }
+  function clearNotice() {
+    $('noticeList').innerHTML = '';
+    $('notice').hidden = true;
+  }
+  $('noticeClose').addEventListener('click', clearNotice);
+
+  // ---------- 画像の追加（1件ずつ順番に処理） ----------
+  let loadQueue = Promise.resolve();
+  function addFiles(fileList) {
+    const files = [...fileList]; // FileListは入力リセットで空になるため先にコピー
+    if (!files.length || state.busy) return loadQueue;
+    state.pending += files.length;
+    resetConverted();
+    loadQueue = loadQueue.then(async () => {
+      for (const file of files) {
+        try {
+          const type = typeOf(file);
+          if (!type) {
+            addNotice(`${file.name} はJPG・PNG・WebP以外のため追加できませんでした`);
+            continue;
+          }
+          try {
+            const { img, url } = await loadImage(file);
+            const item = { id: nextId++, file, type, img, url, hasAlpha: type !== 'image/jpeg' && detectAlpha(img) };
+            item.el = makeItem(item);
+            state.items.push(item);
+            list.appendChild(item.el);
+            refreshItem(item);
+          } catch {
+            addNotice(`${file.name} の読み込みに失敗しました（画像が壊れているか、対応していない形式です）`);
+          }
+        } finally {
+          state.pending--;
+          state.loaded++;
+          update();
+        }
+      }
+    });
+    return loadQueue;
+  }
+
+  function makeItem(item) {
+    const li = document.createElement('li');
+    li.className = 'item';
+    const c = document.createElement('canvas');
+    const s = Math.min(PREVIEW / item.img.naturalWidth, PREVIEW / item.img.naturalHeight, 1);
+    c.width = Math.max(1, Math.round(item.img.naturalWidth * s));
+    c.height = Math.max(1, Math.round(item.img.naturalHeight * s));
+    c.getContext('2d').drawImage(item.img, 0, 0, c.width, c.height);
+    const body = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = item.file.name;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const warn = document.createElement('div');
+    warn.className = 'warn';
+    body.append(name, meta, warn);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', `${item.file.name} を削除`);
+    del.addEventListener('click', () => removeItem(item.id));
+    li.append(c, body, del);
+    return li;
+  }
+
+  function refreshItem(item) {
+    const meta = item.el.querySelector('.meta');
+    const warn = item.el.querySelector('.warn');
+    meta.textContent = '';
+    const r = converted && converted.results.get(item.id);
+    meta.append(`${LABEL[item.type]} ${fmtSize(item.file.size)} → `,
+      Object.assign(document.createElement('span'), { className: 'to', textContent: LABEL[state.fmt] }));
+    if (r && r.ok) meta.append(` ${fmtSize(r.data.length)}　`, Object.assign(document.createElement('span'), { className: 'ok', textContent: `✓ ${r.name}` }));
+    else if (r) meta.append('　', Object.assign(document.createElement('span'), { className: 'ng', textContent: '✕ 変換に失敗しました' }));
+    const lostAlpha = item.hasAlpha && state.fmt === 'jpeg';
+    warn.textContent = lostAlpha ? '透明な部分は白になります（透明を残すならPNGかWebP）' : '';
+    warn.hidden = !lostAlpha;
+  }
+
+  function removeItem(id) {
+    if (state.busy) return;
+    const i = state.items.findIndex(it => it.id === id);
+    if (i < 0) return;
+    URL.revokeObjectURL(state.items[i].url);
+    state.items[i].el.remove();
+    state.items.splice(i, 1);
+    resetConverted();
+  }
+
+  // 一覧や形式が変わったら、変換結果は使えないので破棄する
+  function resetConverted() {
+    converted = null;
+    state.items.forEach(refreshItem);
+    update();
+  }
+
+  function update() {
+    const n = state.items.length;
+    $('listhead').hidden = n === 0;
+    $('count').textContent = `${n}枚選択中`;
+    drop.classList.toggle('compact', n > 0);
+    $('dropBig').textContent = n > 0 ? '＋ 画像を追加する' : 'ここに画像をドラッグ＆ドロップ';
+    list.querySelectorAll('.del').forEach(b => b.disabled = state.busy);
+    $('clearBtn').disabled = state.busy;
+    const ready = n > 0 && !state.busy && state.pending === 0;
+    convertBtn.disabled = !ready;
+    zipBtn.disabled = !ready || !converted || converted.okCount === 0;
+    if (state.pending === 0) state.loaded = 0;
+    if (state.busy) return;
+    if (state.pending > 0) statusEl.textContent = `読み込み中… ${state.loaded} / ${state.loaded + state.pending}`;
+    else if (n === 0) statusEl.textContent = 'まず画像を選択してください';
+    else if (!converted) statusEl.textContent = `${n}枚を${LABEL[state.fmt]}に変換します。「一括変換する」を押してください`;
+    else statusEl.textContent = `変換完了：${converted.okCount}枚` + (converted.failCount ? `（${converted.failCount}枚は失敗）` : '') + '。「ZIPで保存する」を押してください';
+  }
+
+  // ---------- 入力イベント ----------
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => {
+    e.preventDefault();
+    if (ev === 'dragleave' && e.relatedTarget) return;
+    drop.classList.remove('over');
+  }));
+  document.addEventListener('drop', e => { if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files); });
+
+  $('fmtSeg').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled || state.busy || state.fmt === b.dataset.v) return;
+    $('fmtSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    state.fmt = b.dataset.v;
+    $('fmtHint').textContent = state.fmt === 'jpeg' ? 'JPGは透明な部分を残せないため、白になります。'
+      : state.fmt === 'png' ? 'PNGは画質が落ちませんが、写真は容量が大きくなりやすいです。'
+      : 'WebPは軽く、透明も残せます。古い環境では開けない場合があります。';
+    resetConverted();
+  });
+
+  $('clearBtn').addEventListener('click', () => {
+    if (state.busy) return;
+    state.items.forEach(it => URL.revokeObjectURL(it.url));
+    state.items = [];
+    list.innerHTML = '';
+    clearNotice();
+    resetConverted();
+  });
+
+  // ---------- 変換 ----------
+  function toBlob(canvas, type) {
+    return new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(), type, QUALITY));
+  }
+
+  // 1枚を変換。失敗したらキャンバスを作り直して1回だけやり直す（メモリ不足対策）
+  async function convertOne(it, fmt) {
+    let lastErr;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const work = document.createElement('canvas');
+      try {
+        work.width = it.img.naturalWidth;
+        work.height = it.img.naturalHeight;
+        const ctx = work.getContext('2d');
+        if (fmt === 'jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, work.width, work.height); }
+        ctx.drawImage(it.img, 0, 0);
+        const blob = await toBlob(work, 'image/' + fmt);
+        return new Uint8Array(await blob.arrayBuffer());
+      } catch (e) {
+        lastErr = e;
+        await new Promise(r => setTimeout(r, 200));
+      } finally {
+        work.width = work.height = 0; // 大きなキャンバスのメモリをすぐ解放
+      }
+    }
+    throw lastErr || new Error('convert');
+  }
+
+  // 元のファイル名を残し、拡張子だけ変える。重なったら番号を付ける
+  function outName(original, ext, used) {
+    const base = original.replace(/\.[^.]+$/, '') || 'image';
+    let name = `${base}.${ext}`, n = 2;
+    while (used.has(name.toLowerCase())) name = `${base}(${n++}).${ext}`;
+    used.add(name.toLowerCase());
+    return name;
+  }
+
+  // setTimeoutは裏タブで1秒単位に間引かれるため、MessageChannelで処理を譲る
+  const nextTick = () => new Promise(r => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = () => r();
+    ch.port2.postMessage(0);
+  });
+
+  convertBtn.addEventListener('click', async () => {
+    if (!state.items.length || state.busy || state.pending > 0) return;
+    state.busy = true;
+    update();
+    progress.classList.add('on');
+    const bar = progress.firstElementChild;
+    const fmt = state.fmt;
+    const items = state.items.slice();
+    const results = new Map();
+    const used = new Set();
+    let okCount = 0, failCount = 0;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      statusEl.textContent = `変換中… ${i + 1} / ${items.length}（${it.file.name}）`;
+      bar.style.width = (i / items.length * 100) + '%';
+      try {
+        const data = await convertOne(it, fmt);
+        results.set(it.id, { ok: true, data, name: outName(it.file.name, EXT[fmt], used) });
+        okCount++;
+      } catch {
+        results.set(it.id, { ok: false });
+        addNotice(`${it.file.name} の変換に失敗しました`);
+        failCount++;
+      }
+      await nextTick();
+    }
+    bar.style.width = '100%';
+    converted = { fmt, results, okCount, failCount };
+    state.busy = false;
+    state.items.forEach(refreshItem);
+    update();
+    setTimeout(() => progress.classList.remove('on'), 800);
+  });
+
+  zipBtn.addEventListener('click', () => {
+    if (!converted || state.busy) return;
+    const entries = state.items.map(it => converted.results.get(it.id)).filter(r => r && r.ok).map(r => ({ name: r.name, data: r.data }));
+    if (!entries.length) return;
+    try {
+      const zip = makeZip(entries);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(zip);
+      a.download = `converted_${EXT[converted.fmt]}_${stamp()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      statusEl.textContent = `保存しました：${entries.length}枚をZIPにまとめました`;
+    } catch {
+      statusEl.textContent = 'ZIPの作成に失敗しました。枚数を減らしてもう一度お試しください';
+    }
+  });
+
+  function stamp() {
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  }
+
+  // ---------- ZIP作成（無圧縮・外部ライブラリなし） ----------
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(buf) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function makeZip(files) {
+    const enc = new TextEncoder();
+    const d = new Date();
+    const dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const parts = [], central = [];
+    let offset = 0;
+
+    for (const f of files) {
+      const name = enc.encode(f.name);
+      const crc = crc32(f.data);
+      const size = f.data.length;
+
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true);
+      lh.setUint16(4, 20, true);
+      lh.setUint16(6, 0x0800, true);      // ファイル名はUTF-8
+      lh.setUint16(8, 0, true);           // 無圧縮
+      lh.setUint16(10, dosTime, true);
+      lh.setUint16(12, dosDate, true);
+      lh.setUint32(14, crc, true);
+      lh.setUint32(18, size, true);
+      lh.setUint32(22, size, true);
+      lh.setUint16(26, name.length, true);
+      lh.setUint16(28, 0, true);
+      parts.push(lh.buffer, name, f.data);
+
+      const ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true);
+      ch.setUint16(4, 20, true);
+      ch.setUint16(6, 20, true);
+      ch.setUint16(8, 0x0800, true);
+      ch.setUint16(10, 0, true);
+      ch.setUint16(12, dosTime, true);
+      ch.setUint16(14, dosDate, true);
+      ch.setUint32(16, crc, true);
+      ch.setUint32(20, size, true);
+      ch.setUint32(24, size, true);
+      ch.setUint16(28, name.length, true);
+      ch.setUint32(42, offset, true);
+      central.push(ch.buffer, name);
+
+      offset += 30 + name.length + size;
+    }
+
+    const cdSize = central.reduce((s, p) => s + p.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, cdSize, true);
+    end.setUint32(16, offset, true);
+
+    return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+  }
+})();
+</script>
+</body>
+</html>
